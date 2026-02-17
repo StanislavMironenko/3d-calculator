@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Print Cloud Calculator</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#0f172a;color:#e2e8f0;padding:16px;}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.gear{font-size:22px;cursor:pointer;}
+.container{display:flex;gap:16px;flex-wrap:wrap;}
+.card,.debug{background:#1e293b;padding:16px;border-radius:12px;width:100%;max-width:480px;}
+label{display:block;margin-top:10px;font-size:13px;}
+input,select{width:100%;padding:8px;border-radius:6px;border:none;background:#334155;color:white;}
+button{width:100%;padding:10px;margin-top:10px;border:none;border-radius:6px;background:#3b82f6;color:white;cursor:pointer;}
+button.secondary{background:#475569}button.danger{background:#dc2626}button:hover{opacity:.9}
+.row{display:flex;gap:8px} .row button{flex:1}
+.debug-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #334155;}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);padding:16px;z-index:999;overflow:auto;}
+.modal-content{background:#1e293b;padding:16px;border-radius:12px;max-width:480px;margin:auto;}
+.list{margin-top:10px;border:1px solid #334155;border-radius:6px;overflow:hidden;}
+.list-item{padding:8px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #334155;}
+.list-item:last-child{border-bottom:none}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h2>3D Калькулятор</h2>
+    <div class="gear" onclick="openSettings()">⚙️</div>
+</div>
+
+<div class="container">
+
+<div class="card">
+    <label>Название заказа</label>
+    <input id="orderName">
+
+    <label>Принтер</label>
+    <select id="printerSelect"></select>
+
+    <label>Филамент</label>
+    <select id="filamentSelect"></select>
+
+    <label>Вес (г)</label>
+    <input type="number" id="weight">
+
+    <label>Время (ч)</label>
+    <input type="number" id="time">
+
+    <button onclick="calculate()">Рассчитать</button>
+    <div id="result"></div>
+    <button id="acceptBtn" style="display:none" onclick="openOrder()">Принять заказ</button>
+</div>
+
+<div class="debug">
+    <h3>Детализация</h3>
+    <div class="debug-row"><span>Материал</span><span id="dMat">–</span></div>
+    <div class="debug-row"><span>Электроэнергия</span><span id="dEl">–</span></div>
+    <div class="debug-row"><span>Амортизация</span><span id="dAm">–</span></div>
+    <div class="debug-row"><span>Себестоимость</span><span id="dCost">–</span></div>
+    <div class="debug-row"><span>Наценка</span><span id="dMarkup">–</span></div>
+    <div class="debug-row"><strong>Цена</strong><strong id="dPrice">–</strong></div>
+</div>
+
+</div>
+
+<!-- SETTINGS -->
+<div class="modal" id="settingsModal">
+<div class="modal-content">
+    <h3>Настройки</h3>
+    <label>Электроэнергия</label>
+    <input id="sElectric">
+    <label>Наценка (%)</label>
+    <input id="sMarkup">
+    <button onclick="saveSettings()">Сохранить настройки</button>
+
+    <h3>Принтеры</h3>
+    <button onclick="openPrinter()">➕ Добавить принтер</button>
+    <div class="list" id="printerList"></div>
+
+    <h3>Филаменты</h3>
+    <button onclick="openFilament()">➕ Добавить филамент</button>
+    <div class="list" id="filamentList"></div>
+
+    <button class="secondary" onclick="closeAll()">Закрыть</button>
+</div>
+</div>
+
+<!-- PRINTER MODAL -->
+<div class="modal" id="printerModal">
+<div class="modal-content">
+    <h3>Принтер</h3>
+    <input id="pName" placeholder="Название">
+    <input id="pCost" placeholder="Стоимость">
+    <input id="pPower" placeholder="Потребление (кВт)">
+    <input id="pLife" placeholder="Ресурс (ч)">
+    <button onclick="savePrinter()">Сохранить</button>
+    <button class="secondary" onclick="closeAll()">Отмена</button>
+</div>
+</div>
+
+<!-- FILAMENT MODAL -->
+<div class="modal" id="filamentModal">
+<div class="modal-content">
+    <h3>Филамент</h3>
+    <input id="fName" placeholder="Название">
+    <input id="fType" placeholder="Материал">
+    <input id="fColor" placeholder="Цвет">
+    <input id="fPrice" placeholder="Цена за кг">
+    <button onclick="saveFilament()">Сохранить</button>
+    <button class="secondary" onclick="closeAll()">Отмена</button>
+</div>
+</div>
+
+<!-- ORDER MODAL -->
+<div class="modal" id="orderModal">
+<div class="modal-content">
+    <h3>Принять заказ</h3>
+    <label>Заказчик</label>
+    <input id="oCustomer">
+    <label>Комплектующие</label>
+    <input id="oParts" value="0">
+    <label>Количество</label>
+    <input id="oQty" value="1">
+    <label>Цена за 1</label>
+    <input id="oPrice">
+    <label>Итого</label>
+    <input id="oTotal" disabled>
+    <button onclick="saveOrder()">Сохранить заказ</button>
+    <button class="secondary" onclick="closeAll()">Отмена</button>
+</div>
+</div>
+
+<script>
+const API="https://script.google.com/macros/s/AKfycbzZMT4AWpy3eOieFbSaA3gAiGZnA2uKW4y8FMx6erHBWqTcTiSZbt4IO6dmM8OTb4yYqA/exec";
+
+let printers=[],filaments=[],settings={},editIndex=null,lastPrice=0,lastCost=0;
+
+async function loadAll(){
+    try {
+        const r=await fetch(API+"?action=getAll");
+        const d=await r.json();
+        printers=d.printers; filaments=d.filaments; settings=d.settings;
+        printerSelect.innerHTML=printers.map(p=>`<option>${p.name}</option>`).join("");
+        filamentSelect.innerHTML=filaments.map(f=>`<option>${f.name} | ${f.type} | ${f.color}</option>`).join("");
+        renderLists();
+    } catch(e){console.error("Ошибка загрузки данных:",e);}
+}
+loadAll();
+
+function calculate(){
+    const p=printers[printerSelect.selectedIndex];
+    const f=filaments[filamentSelect.selectedIndex];
+    const weightV=+weight.value, timeV=+time.value;
+    const mat=(f.price/1000)*weightV;
+    const el=p.power*timeV*settings.electric;
+    const am=(p.cost/p.life)*timeV;
+    lastCost=mat+el+am;
+    lastPrice=lastCost*(1+settings.markup/100);
+
+    dMat.innerText=mat.toFixed(2);
+    dEl.innerText=el.toFixed(2);
+    dAm.innerText=am.toFixed(2);
+    dCost.innerText=lastCost.toFixed(2);
+    dMarkup.innerText=settings.markup+"%";
+    dPrice.innerText=lastPrice.toFixed(2);
+    result.innerText="Цена: "+lastPrice.toFixed(2);
+    acceptBtn.style.display="block";
+}
+
+function openSettings(){
+    sElectric.value=settings.electric;
+    sMarkup.value=settings.markup;
+    settingsModal.style.display="block";
+}
+async function saveSettings(){
+    await fetch(API,{method:"POST",body:JSON.stringify({action:"saveSettings",item:{electric:+sElectric.value,markup:+sMarkup.value}})});
+    closeAll();loadAll();
+}
+
+function renderLists(){
+    printerList.innerHTML=printers.map((p,i)=>`
+        <div class="list-item">
+            ${p.name}
+            <div>
+                <button onclick="editPrinter(${i})">✏️</button>
+                <button class="danger" onclick="deletePrinter(${i})">🗑</button>
+            </div>
+        </div>`).join("");
+    filamentList.innerHTML=filaments.map((f,i)=>`
+        <div class="list-item">
+            ${f.name} | ${f.type} | ${f.color}
+            <div>
+                <button onclick="editFilament(${i})">✏️</button>
+                <button class="danger" onclick="deleteFilament(${i})">🗑</button>
+            </div>
+        </div>`).join("");
+}
+
+/* PRINTER */
+function openPrinter(){editIndex=null;printerModal.style.display="block";}
+function editPrinter(i){editIndex=i; const p=printers[i]; pName.value=p.name;pCost.value=p.cost;pPower.value=p.power;pLife.value=p.life; printerModal.style.display="block";}
+async function savePrinter(){
+    const item={id:Date.now(),name:pName.value,cost:+pCost.value,power:+pPower.value,life:+pLife.value};
+    const action=editIndex===null?"addPrinter":"updatePrinter";
+    await fetch(API,{method:"POST",body:JSON.stringify({action,index:editIndex,item})});
+    closeAll();loadAll();
+}
+async function deletePrinter(i){
+    if(confirm("Удалить принтер?")){
+        await fetch(API,{method:"POST",body:JSON.stringify({action:"deletePrinter",index:i})});
+        loadAll();
+    }
+}
+
+/* FILAMENT */
+function openFilament(){editIndex=null;filamentModal.style.display="block";}
+function editFilament(i){editIndex=i; const f=filaments[i]; fName.value=f.name;fType.value=f.type;fColor.value=f.color;fPrice.value=f.price; filamentModal.style.display="block";}
+async function saveFilament(){
+    const item={id:Date.now(),name:fName.value,type:fType.value,color:fColor.value,price:+fPrice.value};
+    const action=editIndex===null?"addFilament":"updateFilament";
+    await fetch(API,{method:"POST",body:JSON.stringify({action,index:editIndex,item})});
+    closeAll();loadAll();
+}
+async function deleteFilament(i){
+    if(confirm("Удалить филамент?")){
+        await fetch(API,{method:"POST",body:JSON.stringify({action:"deleteFilament",index:i})});
+        loadAll();
+    }
+}
+
+/* ORDER */
+function openOrder(){
+    oPrice.value=lastPrice.toFixed(2);
+    oQty.value=1;
+    oParts.value=0;
+    updateTotal();
+    orderModal.style.display="block";
+}
+function updateTotal(){oTotal.value=(oPrice.value*oQty.value*oQty.value+ +oParts.value).toFixed(2);}
+oQty.oninput=oPrice.oninput=oParts.oninput=updateTotal;
+
+async function saveOrder(){
+    await fetch(API,{method:"POST",body:JSON.stringify({
+        action:"addOrder",
+        item:{
+            date:new Date().toLocaleString(),
+            customer:oCustomer.value,
+            printer:printerSelect.value,
+            filament:filamentSelect.value,
+            qty:+oQty.value,
+            price:+oPrice.value,
+            parts:+oParts.value,
+            total:+oTotal.value,
+            orderName:orderName.value
+        }
+    })});
+    closeAll();
+}
+
+function closeAll(){document.querySelectorAll(".modal").forEach(m=>m.style.display="none");}
+</script>
+</body>
+</html>
