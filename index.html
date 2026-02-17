@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>3D Print Cloud Calculator</title>
-
 <style>
 *{box-sizing:border-box}
 body{
@@ -109,11 +108,10 @@ button:hover{opacity:.9}
 .list-item:last-child{border-bottom:none}
 
 @media (max-width:767px){
-    .gear,.debug{display:none}
+    .gear, .debug{display:none;}
 }
 </style>
 </head>
-
 <body>
 
 <div class="header">
@@ -145,7 +143,7 @@ button:hover{opacity:.9}
     <button id="acceptBtn" style="display:none" onclick="openOrder()">Принять заказ</button>
 </div>
 
-<!-- DEBUG (только для больших экранов) -->
+<!-- DEBUG -->
 <div class="debug">
     <h3>Детализация</h3>
     <div class="debug-row"><span>Материал</span><span id="dMat">–</span></div>
@@ -209,14 +207,12 @@ button:hover{opacity:.9}
 </div>
 </div>
 
-<!-- ORDER -->
+<!-- ORDER MODAL -->
 <div class="modal" id="orderModal">
 <div class="modal-content">
     <h3>Принять заказ</h3>
     <label>Заказчик</label>
     <input id="oCustomer">
-    <label>Название заказа</label>
-    <input id="oOrderName">
     <label>Количество</label>
     <input id="oQty" value="1">
     <label>Цена за 1</label>
@@ -225,31 +221,31 @@ button:hover{opacity:.9}
     <input id="oParts" value="0">
     <label>Итого</label>
     <input id="oTotal" disabled>
+    <label>Название заказа</label>
+    <input id="oName">
     <button onclick="saveOrder()">Сохранить заказ</button>
     <button class="secondary" onclick="closeAll()">Отмена</button>
 </div>
 </div>
 
 <script>
-const API="YOUR_GOOGLE_SCRIPT_URL_HERE";
+const API="https://script.google.com/macros/s/AKfycbzZMT4AWpy3eOieFbSaA3gAiGZnA2uKW4y8FMx6erHBWqTcTiSZbt4IO6dmM8OTb4yYqA/exec";
 
 let printers=[],filaments=[],settings={},editIndex=null,lastPrice=0,lastCost=0;
 
 async function loadAll(){
     try{
-        const r = await fetch(API+"?action=getAll");
-        const d = await r.json();
-        printers=d.printers;
-        filaments=d.filaments;
-        settings=d.settings;
+    const r=await fetch(API+"?action=getAll");
+    const d=await r.json();
+    printers=d.printers;
+    filaments=d.filaments;
+    settings=d.settings;
 
-        printerSelect.innerHTML=printers.map(p=>`<option>${p.name}</option>`).join("");
-        filamentSelect.innerHTML=filaments.map(f=>`<option>${f.name} | ${f.type} | ${f.color}</option>`).join("");
+    printerSelect.innerHTML=printers.map(p=>`<option>${p.name}</option>`).join("");
+    filamentSelect.innerHTML=filaments.map(f=>`<option>${f.name} | ${f.type} | ${f.color}</option>`).join("");
 
-        renderLists();
-    }catch(e){
-        console.log("Ошибка загрузки данных", e);
-    }
+    renderLists();
+    }catch(e){console.error(e);}
 }
 loadAll();
 
@@ -264,39 +260,40 @@ function calculate(){
     lastCost=mat+el+am;
     lastPrice=lastCost*(1+settings.markup/100);
 
-    if(window.innerWidth>767){
-        dMat.innerText=mat.toFixed(2);
-        dEl.innerText=el.toFixed(2);
-        dAm.innerText=am.toFixed(2);
-        dCost.innerText=lastCost.toFixed(2);
-        dMarkup.innerText=settings.markup+"%";
-        dPrice.innerText=lastPrice.toFixed(2);
-    }
+    if(document.getElementById('dMat')) document.getElementById('dMat').innerText=mat.toFixed(2);
+    if(document.getElementById('dEl')) document.getElementById('dEl').innerText=el.toFixed(2);
+    if(document.getElementById('dAm')) document.getElementById('dAm').innerText=am.toFixed(2);
+    if(document.getElementById('dCost')) document.getElementById('dCost').innerText=lastCost.toFixed(2);
+    if(document.getElementById('dMarkup')) document.getElementById('dMarkup').innerText=settings.markup+"%";
+    if(document.getElementById('dPrice')) document.getElementById('dPrice').innerText=lastPrice.toFixed(2);
 
     result.innerText="Цена: "+lastPrice.toFixed(2);
     acceptBtn.style.display="block";
 }
 
+/* SETTINGS */
 function openSettings(){
     sElectric.value=settings.electric;
     sMarkup.value=settings.markup;
     settingsModal.style.display="block";
 }
-
 async function saveSettings(){
-    await fetch(API,{method:"POST",body:JSON.stringify({action:"saveSettings",item:{electric:sElectric.value,markup:sMarkup.value}})});
-    closeAll();
-    loadAll();
+    await fetch(API,{
+        method:"POST",
+        headers: {'Content-Type':'application/json'},
+        body:JSON.stringify({action:"saveSettings",item:{electric:sElectric.value,markup:sMarkup.value}})
+    });
+    closeAll(); loadAll();
 }
 
-/* Lists */
+/* RENDER LISTS */
 function renderLists(){
     printerList.innerHTML=printers.map((p,i)=>`
         <div class="list-item">
             ${p.name}
             <div>
                 <button onclick="editPrinter(${i})">✏️</button>
-                <button class="danger" onclick="deletePrinter(${i})">🗑</button>
+                <button onclick="deletePrinter(${i})" class="danger">🗑</button>
             </div>
         </div>`).join("");
 
@@ -305,7 +302,7 @@ function renderLists(){
             ${f.name} | ${f.type} | ${f.color}
             <div>
                 <button onclick="editFilament(${i})">✏️</button>
-                <button class="danger" onclick="deleteFilament(${i})">🗑</button>
+                <button onclick="deleteFilament(${i})" class="danger">🗑</button>
             </div>
         </div>`).join("");
 }
@@ -314,44 +311,56 @@ function renderLists(){
 function openPrinter(){editIndex=null;printerModal.style.display="block";}
 function editPrinter(i){
     editIndex=i;
-    let p=printers[i];
+    const p=printers[i];
     pName.value=p.name;pCost.value=p.cost;pPower.value=p.power;pLife.value=p.life;
     printerModal.style.display="block";
 }
 async function savePrinter(){
     const item={id:Date.now(),name:pName.value,cost:pCost.value,power:pPower.value,life:pLife.value};
     const action=editIndex===null?"addPrinter":"updatePrinter";
-    await fetch(API,{method:"POST",body:JSON.stringify({action,index:editIndex,item})});
-    closeAll();loadAll();
+    await fetch(API,{
+        method:"POST",
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action,index:editIndex,item})
+    });
+    closeAll(); loadAll();
 }
 async function deletePrinter(i){
-    if(!confirm("Удалить принтер?")) return;
-    const res = await fetch(API,{method:"POST",body:JSON.stringify({action:"deletePrinter",index:i})});
-    const data = await res.json();
-    if(data.status==="ok") loadAll();
-    else alert("Ошибка удаления");
+    if(!confirm("Точно удалить принтер?")) return;
+    await fetch(API,{
+        method:"POST",
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:"deletePrinter",index:i})
+    });
+    loadAll();
 }
 
 /* FILAMENT */
 function openFilament(){editIndex=null;filamentModal.style.display="block";}
 function editFilament(i){
     editIndex=i;
-    let f=filaments[i];
-    fName.value=f.name;fType.value=f.type;fColor.value=f.color;fPrice.value=f.price;
+    const f=filaments[i];
+    fName.value=f.name; fType.value=f.type; fColor.value=f.color; fPrice.value=f.price;
     filamentModal.style.display="block";
 }
 async function saveFilament(){
     const item={id:Date.now(),name:fName.value,type:fType.value,color:fColor.value,price:fPrice.value};
     const action=editIndex===null?"addFilament":"updateFilament";
-    await fetch(API,{method:"POST",body:JSON.stringify({action,index:editIndex,item})});
-    closeAll();loadAll();
+    await fetch(API,{
+        method:"POST",
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action,index:editIndex,item})
+    });
+    closeAll(); loadAll();
 }
 async function deleteFilament(i){
-    if(!confirm("Удалить филамент?")) return;
-    const res = await fetch(API,{method:"POST",body:JSON.stringify({action:"deleteFilament",index:i})});
-    const data = await res.json();
-    if(data.status==="ok") loadAll();
-    else alert("Ошибка удаления");
+    if(!confirm("Точно удалить филамент?")) return;
+    await fetch(API,{
+        method:"POST",
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:"deleteFilament",index:i})
+    });
+    loadAll();
 }
 
 /* ORDER */
@@ -359,28 +368,32 @@ function openOrder(){
     oPrice.value=lastPrice.toFixed(2);
     oQty.value=1;
     oParts.value=0;
-    oOrderName.value = orderName.value;
+    oName.value=orderName.value;
     updateTotal();
     orderModal.style.display="block";
 }
-function updateTotal(){oTotal.value=(oPrice.value*oQty.value+Number(oParts.value)).toFixed(2)}
+function updateTotal(){oTotal.value=(oPrice.value*oQty.value+Number(oParts.value)).toFixed(2);}
 oQty.oninput=oPrice.oninput=oParts.oninput=updateTotal;
 
 async function saveOrder(){
-    await fetch(API,{method:"POST",body:JSON.stringify({
-        action:"addOrder",
-        item:{
-            date:new Date().toLocaleString(),
-            order:oOrderName.value,
-            customer:oCustomer.value,
-            printer:printerSelect.value,
-            filament:filamentSelect.value,
-            qty:oQty.value,
-            price:oPrice.value,
-            parts:oParts.value,
-            total:oTotal.value
-        }
-    })});
+    await fetch(API,{
+        method:"POST",
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+            action:"addOrder",
+            item:{
+                date:new Date().toLocaleString(),
+                order:oName.value,
+                customer:oCustomer.value,
+                printer:printerSelect.value,
+                filament:filamentSelect.value,
+                qty:oQty.value,
+                price:oPrice.value,
+                parts:oParts.value,
+                total:oTotal.value
+            }
+        })
+    });
     closeAll();
 }
 
