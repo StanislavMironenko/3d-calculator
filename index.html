@@ -365,14 +365,23 @@ async function deleteFilament(i){
 
 /* ORDER */
 function openOrder(){
-    oPrice.value=lastPrice.toFixed(2);
-    oQty.value=1;
-    oParts.value=0;
-    oName.value=orderName.value;
+    oPrice.value = lastPrice.toFixed(2);
+    oQty.value = 1;
+    oParts.value = 0;
+    oName.value = orderName.value;
     updateTotal();
-    orderModal.style.display="block";
+    orderModal.style.display = "block";
 }
-function updateTotal(){oTotal.value=(oPrice.value*oQty.value+Number(oParts.value)).toFixed(2);}
+
+function updateTotal(){
+    const price = parseFloat(oPrice.value) || 0;
+    const qty   = parseFloat(oQty.value) || 0;
+    const parts = parseFloat(oParts.value) || 0;
+
+    const total = price * qty + parts;
+    oTotal.value = total.toFixed(2);
+}
+
 oQty.oninput=oPrice.oninput=oParts.oninput=updateTotal;
 
 async function saveOrder(){
